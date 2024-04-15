@@ -38,21 +38,28 @@ public class AwsSnsNotifierAppl {
 	}
 	@Bean
 	Consumer<DeviationData> emailNotifierConsumer() {
-		return this::sendingSns;
+		return this:: notificateAndSave;
 	}
-	void sendingSns(DeviationData deviation) {
+	void  notificateAndSave(DeviationData deviation) {
 		log.debug("received deviation data: {}",deviation);
 		long sensorId = deviation.id();
+		sendSns(deviation, sensorId);	
+		putDynamoDB(deviation, sensorId);
+	}
+	private void sendSns(DeviationData deviation, long sensorId) {
 		AmazonSNS client = AmazonSNSClient.builder().withRegion(region)
 				.build();
 		String topicArnString = (arnAddress + ":" + topicName);
+		String subject = subjectName +  sensorId;
 		String message = String.format("Deviation of sensor:%d is %f, of value: %f, timestamp %s", sensorId, deviation.deviation(), deviation.value(), deviation.timestamp() + "");
 		log.debug("Config arnAddr: {}, message: {}, subj: {}", topicArnString, message, topicName);
-		client.publish(topicArnString, message, subjectName);
+		client.publish(topicArnString, message, subject);
 		log.debug("send deviation data: {}", message);
-        AmazonDynamoDB clientAmazonDynamoDB = AmazonDynamoDBClientBuilder.standard()
-            .withRegion(region)
-            .build();	
+	}
+	private void putDynamoDB(DeviationData deviation, long sensorId) {
+		AmazonDynamoDB clientAmazonDynamoDB = AmazonDynamoDBClientBuilder.standard()
+	            .withRegion(region)
+	            .build();
 		DynamoDB dynamoDB = new DynamoDB(clientAmazonDynamoDB);
 		Table table = dynamoDB.getTable(topicName);
 		Item item = new Item()
@@ -61,6 +68,7 @@ public class AwsSnsNotifierAppl {
 				.withDouble("value", deviation.value())
 				.withLong("timestamp", deviation.timestamp());
 		table.putItem(item);
+		log.debug("Deviation {} saved in DynamoDB", deviation);
 	}	
 	
 	
