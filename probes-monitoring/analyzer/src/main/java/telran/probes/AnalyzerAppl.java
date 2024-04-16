@@ -35,12 +35,16 @@ public class AnalyzerAppl {
 		long id = probeData.id();
 		double value = probeData.value();
 		Range range = clientService.getRange(id);
+		if (range != null) {
 		if (value > range.maxValue()) {
 			sendDeviation(id, value, range.maxValue());
 		} else if (value < range.minValue()){
 			sendDeviation(id, value, range.minValue());
 		}
-
+		}
+		else {
+			log.error("Error! sensor id{} range is null ", probeData.id());
+		}
 
 	}
 	private void sendDeviation(long id, double value, double limit) {
