@@ -12,6 +12,10 @@
     <artifactId>aws-java-sdk-cloudwatch</artifactId>
     <version>1.12.700</version>
 </dependency>
-
+<dependency>
+    <groupId>software.amazon.awssdk</groupId>
+    <artifactId>cloudwatchlogs</artifactId>
+    <version>2.25.31</version>
+</dependency>
   </dependencies>
 </project>

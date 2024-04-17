@@ -1,4 +1,6 @@
 package telran.probes.service;
+import java.time.Instant;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.function.Consumer;
 
@@ -9,6 +11,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
+import com.amazonaws.regions.Regions;
+
 import ch.qos.logback.core.joran.conditional.IfAction;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,6 +22,10 @@ import software.amazon.awssdk.services.cloudwatch.model.Dimension;
 import software.amazon.awssdk.services.cloudwatch.model.MetricDatum;
 import software.amazon.awssdk.services.cloudwatch.model.PutMetricDataRequest;
 import software.amazon.awssdk.services.cloudwatch.model.StandardUnit;
+import software.amazon.awssdk.services.cloudwatchlogs.CloudWatchLogsClient;
+import software.amazon.awssdk.services.cloudwatchlogs.model.InputLogEvent;
+import software.amazon.awssdk.services.cloudwatchlogs.model.PutLogEventsRequest;
+import software.amazon.awssdk.services.cloudwatchlogs.model.PutLogEventsResponse;
 import telran.probes.dto.Range;
 import telran.probes.dto.SensorUpdateData;
 
@@ -28,8 +36,12 @@ public class RangeProviderClientServiceImpl implements RangeProviderClientServic
 final RestTemplate restTemplate;
 final ServiceConfiguration serviceConfiguration;
 HashMap<Long, Range> sensorData = new HashMap<Long, Range>();
-
-	
+@Value("${logGroupName}")
+String logGroupName;
+@Value("${logStreamName}")
+String logStreamName;
+@Value("${regiontName}")
+String regionName;
 	@Override
 	public Range getRange(long sensorId) {
 		Range range = null;
@@ -70,26 +82,20 @@ HashMap<Long, Range> sensorData = new HashMap<Long, Range>();
 	}
 	private void sendCloudWatchMetric(String errorMessage) {
 		  	// Create client Amazon CloudWatch
-		Region region = Region.US_EAST_1;
-		CloudWatchClient cloudWatchClient = CloudWatchClient.builder()
-				.region(region)
-	            .build();
+		Region region = Region.of(regionName);
         	// Create metrics with error message
+		CloudWatchLogsClient logsClient = CloudWatchLogsClient.builder()
+	            .region(region)
+	            .build();
         MetricDatum metricDatum = MetricDatum.builder()
                 .metricName("ErrorCount")
                 .dimensions(Dimension.builder().name("ErrorType").value(errorMessage).build())
                 .unit(StandardUnit.NONE)
                 .value(1.0) // 1 error
                 .build();
-
+        String message = metricDatum.toString(); 
+        putLogEvent(logsClient, logGroupName, logStreamName, message);
         // Create request to send message to CloudWatch
-        PutMetricDataRequest request = PutMetricDataRequest.builder()
-                .namespace("MyApplicationMetrics")
-                .metricData(metricDatum)
-                .build();
-
-        // Отправляем метрику в CloudWatch
-        cloudWatchClient.putMetricData(request);
     }
 		
 	
@@ -104,6 +110,21 @@ HashMap<Long, Range> sensorData = new HashMap<Long, Range>();
 		return url;
 	}
 	
+	private static void putLogEvent(CloudWatchLogsClient logsClient, String logGroupName, String logStreamName, String message) {
+        long timestamp = Instant.now().toEpochMilli();
+        InputLogEvent logEvent = InputLogEvent.builder()
+            .timestamp(timestamp)
+            .message(message)
+            .build();
+        PutLogEventsRequest request = PutLogEventsRequest.builder()
+            .logGroupName(logGroupName)
+            .logStreamName(logStreamName)
+            .logEvents(Collections.singletonList(logEvent))
+            .build();
+        PutLogEventsResponse response = logsClient.putLogEvents(request);
+        log.warn("Response: {}", response);
+    }
+
 	
 	@Bean
 	Consumer<SensorUpdateData> updateRangeConsumer() {
