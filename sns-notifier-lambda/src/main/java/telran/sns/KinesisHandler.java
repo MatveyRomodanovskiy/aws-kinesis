@@ -50,7 +50,7 @@ public class KinesisHandler implements RequestHandler<KinesisEvent, String> {
 			long timestamp = (Long) jsonObject.get(timeStampName);
 			String subject = mainSubjectName + " " +  sensorId;
 			String message = String.format("Deviation of sensor:%d is %f, of value: %f, timestamp %s", sensorId, deviation, value, timestamp + "");
-//			client.publish(topicArnString, message, subject);
+			client.publish(topicArnString, message, subject);
 			logger.log("send deviation data:" + message);
 			} catch (ParseException e) {
 				// TODO Auto-generated catch block
